@@ -1,0 +1,79 @@
+name: redhat_sso
+services:
+  postgresql:
+    hostname: postgresql
+    container_name: postgresql
+    build:
+      context: ./postgresql
+    command: -c ssl=on -c ssl_cert_file=/var/lib/postgresql/server.crt -c ssl_key_file=/var/lib/postgresql/server.key
+    ports:
+      - 5432:5432
+    environment:
+      POSTGRES_DB: sso
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+    volumes:
+      - /db-data-3:/var/lib/postgresql/data
+      - ./postgresql/dataset/schema.sql:/docker-entrypoint-initdb.d/schema.sql
+    networks:
+      - redhat_sso
+  sso76-openshift-rhel8:
+    container_name: redhat-sso
+    #profiles:
+    #  - donotstart
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+    ports:
+      - 8778:8778
+      - 8080:8080
+      - 8443:8443
+      - 8888:8888
+    depends_on:
+      - postgresql
+    environment:
+      - SSO_HOSTNAME=localhost
+      - SSO_ADMIN_USERNAME=admin
+      - SSO_ADMIN_PASSWORD=password
+      - SSO_REALM=master
+      - HTTPS_KEYSTORE_DIR=/etc/keystore
+      - HTTPS_KEYSTORE=keystore.jks
+      - HTTPS_KEYSTORE_TYPE=jks
+      - HTTPS_NAME=jboss
+      - HTTPS_PASSWORD=secret
+      - JGROUPS_ENCRYPT_KEYSTORE_DIR=/etc/jgroups
+      - JGROUPS_ENCRYPT_KEYSTORE=jgroups.jceks
+      - JGROUPS_ENCRYPT_NAME=secret-key
+      - JGROUPS_ENCRYPT_PASSWORD=secret
+      - JGROUPS_CLUSTER_PASSWORD=random
+      - SSO_TRUSTSTORE=truststore.jks
+      - SSO_TRUSTSTORE_DIR=/etc/truststore
+      - SSO_TRUSTSTORE_PASSWORD=secret
+      - DB_USERNAME=user
+      - DB_PASSWORD=password
+      - DB_HOST=postgresql
+
+    volumes:
+      - $PWD/keystore:/etc/keystore
+      - $PWD/jgroups:/etc/jgroups
+      - $PWD/truststore:/etc/truststore
+    #image: registry.redhat.io/rh-sso-7/sso76-openshift-rhel8:7.6-35
+    build:
+      context: ./sso
+      args:
+        - GLB_PRIVATE_TOKEN=
+        - GLB_GROUP_PJT_ID=52356394
+        - MAVEN_GROUP_ID=com/gorgosoft/test
+        - MAVEN_ARTIFACT_ID=rh_sso_test
+        - MAVEN_ARTIFACT_VERSION=20.0.0
+        - GLB_ARTIFACT_FILE_NAME=rh_sso_test-20.0.0
+        - FILE_TYPE=.jar
+    networks:
+      - redhat_sso
+
+networks:
+  redhat_sso:
+    driver: bridge
+  default:
+    driver: bridge
